@@ -57,6 +57,10 @@ class Model():
     def train(self):
         model = self.model
         optimizer = self.optimizer(model.parameters(), lr=self.learning_rate)
+        train_data = self.train_data
+        train_batch = self.train_batch
+        margin = self.margin
+        C = self.C
         mean_rank = np.inf
         valid_epoch = 10
         mean_rank_not_decrease_count = 0
@@ -65,10 +69,10 @@ class Model():
             print('Epoch {}'.format(epoch))
             start_time = time.time()
             loss = torch.FloatTensor([0.0])
-            random.shuffle(self.train_batch)
-            for batch in tqdm(self.train_batch):
+            random.shuffle(train_batch)
+            for batch in tqdm(train_batch):
                 h, t, l, h_apos, t_apos, l_apos = \
-                    self.__sample_corrupted_filter__(batch, self.train_data)
+                    self.__sample_corrupted_filter__(batch, train_data)
                 h = torch.autograd.Variable(torch.LongTensor(h))
                 t = torch.autograd.Variable(torch.LongTensor(t))
                 l = torch.autograd.Variable(torch.LongTensor(l))
@@ -80,7 +84,7 @@ class Model():
                 dist, dist_apos = model(h, t, l,
                                         h_apos, t_apos, l_apos)
 
-                batch_loss = self.loss_function(dist, dist_apos, self.margin)
+                batch_loss = self.loss_function(dist, dist_apos, margin)
                 if model.name == 'TransH':
                     entity_embedding = model.entity_embedding(
                         torch.cat([h, t, h_apos, t_apos]))
@@ -88,7 +92,7 @@ class Model():
                         torch.cat([l, l_apos]))
                     w_embedding = model.w_embedding(
                         torch.cat([l, l_apos]))
-                    batch_loss += self.C*(
+                    batch_loss += C*(
                         scale_loss(entity_embedding) +
                         orthogonal_loss(relation_embedding, w_embedding)
                     )
@@ -109,7 +113,7 @@ class Model():
                 entity_embedding = model.entity_embedding.weight.data.cpu().numpy()
                 relation_embedding = model.relation_embedding.weight.data.cpu().numpy()
                 w_embedding = None
-                if model.name == 'TransH':
+                if model.name == 'TransH' or model.name == 'TransR':
                     w_embedding = model.w_embedding.weight.data.cpu().numpy()
                 valid_data = self.valid_data
                 norm = self.norm
@@ -141,3 +145,6 @@ class Model():
                         else:
                             optimizer.param_groups[0]['lr'] *= 0.1
                             mean_rank_not_decrease_count = 0
+
+    def test(self):
+        pass

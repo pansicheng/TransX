@@ -51,6 +51,36 @@ def rank_H(test_data):
     return rank_where(h, t, hl, lt, norm_global, entity_embedding)
 
 
+def rank_R(test_data):
+    global entity_embedding_global, relation_embedding_global, w_embedding_global, norm_global
+    h = [triple[0] for triple in test_data]
+    t = [triple[1] for triple in test_data]
+    l = [triple[2] for triple in test_data]
+    w_vec = w_embedding_global[l[0]].reshape((relation_embedding_global.shape[1],
+                                              entity_embedding_global.shape[1])).T
+    entity_embedding = np.matmul(entity_embedding_global, w_vec)
+    h_vec = entity_embedding[h]
+    t_vec = entity_embedding[t]
+    l_vec = relation_embedding_global[l]
+    hl = h_vec+l_vec
+    lt = t_vec-l_vec
+    return rank_where(h, t, hl, lt, norm_global, entity_embedding)
+
+
+def relation_batch(test_data, relation_num, batch_size):
+    _test_data = dict([(i, [])
+                       for i in range(relation_num)])
+    # 每个 batch 只能有一种关系
+    for triple in test_data:
+        _test_data[triple[2]].append(triple)
+    test_data = []
+    # 每个 batch 的大小要求不超过 batch_size
+    for _test_sub in list(_test_data.values()):
+        for i in range(math.ceil(len(_test_sub)/batch_size)):
+            test_data.append(_test_sub[i*batch_size:(i+1)*batch_size])
+    return test_data
+
+
 def testX(test_data, entity_embedding, relation_embedding, w_embedding,
           norm, model, processes, batch_size):
     global entity_embedding_global, relation_embedding_global, w_embedding_global, norm_global
@@ -66,19 +96,12 @@ def testX(test_data, entity_embedding, relation_embedding, w_embedding,
                      for i in range(group)]
     elif model == 'TransH':
         rank_function = rank_H
-        _test_data = dict([(i, [])
-                           for i in range(relation_embedding.shape[0])])
-        # 每个 batch 只能有一种关系
-        for triple in test_data:
-            _test_data[triple[2]].append(triple)
-        test_data = []
-        # 每个 batch 的大小要求小于 batch_size
-        for _test_sub in list(_test_data.values()):
-            if (len(_test_sub) % batch_size) > (0.5*batch_size):
-                for i in range(math.ceil(len(_test_sub)/batch_size)):
-                    test_data.append(_test_sub[i*batch_size:(i+1)*batch_size])
-            else:
-                test_data.append(_test_sub)
+        test_data = relation_batch(
+            test_data, relation_embedding.shape[0], batch_size)
+    elif model == 'TransR':
+        rank_function = rank_R
+        test_data = relation_batch(
+            test_data, relation_embedding.shape[0], batch_size)
 
     with Pool(processes) as pool:
         rank_list = [v for v in tqdm(
