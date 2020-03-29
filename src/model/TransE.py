@@ -7,9 +7,8 @@ class TransE(torch.nn.Module):
                  entity_num,
                  relation_num
                  ):
-        """Training set S = {(h, l, t)}, entities and rel. sets E and L, margin gamma, embeddings dim. k."""
         super(TransE, self).__init__()
-        self.name = 'TransE'
+        self.name = "TransE"
         self.dim = e_dim
         self.norm = norm
         self.entity_num = entity_num

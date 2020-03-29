@@ -29,6 +29,8 @@ class Config():
         self.train_batch = data.train_batch
         self.valid_data = list(data.valid_data.keys())
         self.test_data = list(data.test_data.keys())
+        self.valid_data_classification = data.valid_data_classification
+        self.test_data_classification = data.test_data_classification
         self.model = TransE(self.e_dim, self.r_dim, self.norm,
                             self.entity_num, self.relation_num)
         self.filename = path
@@ -36,9 +38,9 @@ class Config():
 
 
 def main():
-    config = Config('WN18')
+    config = Config("WN18")
     model = Model(config)
-    model.train()
+    model.test()
     pass
 
 

@@ -4,7 +4,7 @@ import os
 import random
 import torch
 import numpy as np
-from model.Test import testX
+from model.Test import testX, testC
 from model.Loss import scale_loss, orthogonal_loss
 
 
@@ -25,10 +25,14 @@ class Model():
         self.train_batch = config.train_batch
         self.valid_data = config.valid_data
         self.test_data = config.test_data
+        self.valid_data_classification = config.valid_data_classification
+        self.test_data_classification = config.test_data_classification
         self.model = config.model
         self.filename = config.filename
         self.processes = config.processes
-        print('Model: {} | {}'.format(self.model.name, self.filename))
+        self.save_model = os.path.join(os.path.dirname(
+            __file__), "torch/"+self.model.name+"_"+self.filename+".torch")
+        print("Model: {} | {}".format(self.model.name, self.filename))
 
     def __triple_corrupted_head__(self, triple, train_data):
         while True:
@@ -66,7 +70,7 @@ class Model():
         mean_rank_not_decrease_count = 0
         lr_decrease = 0
         for epoch in range(self.epoch):
-            print('Epoch {}'.format(epoch))
+            print("Epoch {}".format(epoch))
             start_time = time.time()
             loss = torch.FloatTensor([0.0])
             random.shuffle(train_batch)
@@ -85,7 +89,7 @@ class Model():
                                         h_apos, t_apos, l_apos)
 
                 batch_loss = self.loss_function(dist, dist_apos, margin)
-                if model.name == 'TransH':
+                if model.name == "TransH":
                     entity_embedding = model.entity_embedding(
                         torch.cat([h, t, h_apos, t_apos]))
                     relation_embedding = model.relation_embedding(
@@ -102,7 +106,7 @@ class Model():
                 loss += batch_loss
 
             print("Epoch {} | loss: {} | {:.2f}s | lr: {}".format(
-                epoch, loss.item(), time.time()-start_time, optimizer.param_groups[0]['lr']))
+                epoch, loss.item(), time.time()-start_time, optimizer.param_groups[0]["lr"]))
 
             if mean_rank < 300 and valid_epoch > 1:
                 valid_epoch = 1
@@ -113,7 +117,7 @@ class Model():
                 entity_embedding = model.entity_embedding.weight.data.cpu().numpy()
                 relation_embedding = model.relation_embedding.weight.data.cpu().numpy()
                 w_embedding = None
-                if model.name == 'TransH' or model.name == 'TransR':
+                if model.name == "TransH" or model.name == "TransR":
                     w_embedding = model.w_embedding.weight.data.cpu().numpy()
                 valid_data = self.valid_data
                 norm = self.norm
@@ -132,8 +136,7 @@ class Model():
                     print("Epoch {}: mean_rank improved from {:.2f} to {:.2f}, saving model".format(
                         epoch, mean_rank, _mean_rank))
                     mean_rank = _mean_rank
-                    torch.save(model, os.path.join(
-                        os.path.dirname(__file__), 'torch/'+model.name+'_'+self.filename+'.torch'))
+                    torch.save(model, self.save_model)
                 else:
                     print("Epoch {}: mean_rank {:.2f}".format(
                         epoch, _mean_rank))
@@ -143,8 +146,42 @@ class Model():
                         if lr_decrease == self.early_stopping_round:
                             break
                         else:
-                            optimizer.param_groups[0]['lr'] *= 0.1
+                            optimizer.param_groups[0]["lr"] *= 0.1
                             mean_rank_not_decrease_count = 0
 
     def test(self):
-        pass
+        model = self.model
+        model = torch.load(self.save_model)
+        entity_embedding = model.entity_embedding.weight.data.cpu().numpy()
+        relation_embedding = model.relation_embedding.weight.data.cpu().numpy()
+        w_embedding = None
+        if model.name == "TransH" or model.name == "TransR":
+            w_embedding = model.w_embedding.weight.data.cpu().numpy()
+
+        print("link prediction")
+        test_data = self.test_data
+        norm = self.norm
+        processes = self.processes
+        test_batch_size = self.test_batch_size
+        mean_rank, hit10 = testX(test_data,
+                                 entity_embedding,
+                                 relation_embedding,
+                                 w_embedding,
+                                 norm,
+                                 model.name,
+                                 processes,
+                                 test_batch_size)
+
+        print("triple classification")
+        valid_data_classification = self.valid_data_classification
+        test_data_classification = self.test_data_classification
+        classification_acc = testC(valid_data_classification,
+                                   test_data_classification,
+                                   entity_embedding,
+                                   relation_embedding,
+                                   w_embedding,
+                                   norm,
+                                   model.name)
+
+        print("mean_rank {} | hit10 {:.2f}% | classification_acc {:.2f}%".format(
+            mean_rank, hit10*100, classification_acc*100))
