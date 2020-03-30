@@ -4,8 +4,25 @@ import os
 
 
 class Data():
-    def __init__(self):
-        pass
+    def __init__(self, path, batch_size):
+        self.entity_num, self.entity = self.__load_er__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/entity2id.txt"))
+        self.relation_num, self.relation = self.__load_er__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/relation2id.txt"))
+        self.train_num, self.train_data = self.__load_data__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/train2id.txt"))
+        self.train_batch = self.__get_batch__(
+            list(self.train_data.keys()), self.train_num, batch_size)
+        _, self.valid_data = self.__load_data__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/valid2id.txt"))
+        _, self.test_data = self.__load_data__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/test2id.txt"))
+        _, self.r_left, self.r_right = self.__load_constrain__(os.path.join(
+            os.path.dirname(__file__), "../../data/"+path+"/type_constrain.txt"))
+        self.valid_data_classification = self.__classification__(
+            list(self.valid_data.keys()), self.r_left, self.r_right)
+        self.test_data_classification = self.__classification__(
+            list(self.test_data.keys()), self.r_left, self.r_right)
 
     def __load_er__(self, path):
         with open(path, "r") as handle:
@@ -63,25 +80,3 @@ class Data():
             for triple in test_data
         ]
         return dict([(v, True) for v in test_data]+[(v, False) for v in corrupted_test_data])
-
-
-class WN18(Data):
-    def __init__(self, path, batch_size):
-        self.entity_num, self.entity = self.__load_er__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/entity2id.txt"))
-        self.relation_num, self.relation = self.__load_er__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/relation2id.txt"))
-        self.train_num, self.train_data = self.__load_data__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/train2id.txt"))
-        self.train_batch = self.__get_batch__(
-            list(self.train_data.keys()), self.train_num, batch_size)
-        _, self.valid_data = self.__load_data__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/valid2id.txt"))
-        _, self.test_data = self.__load_data__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/test2id.txt"))
-        _, self.r_left, self.r_right = self.__load_constrain__(os.path.join(
-            os.path.dirname(__file__), "../../data/"+path+"/type_constrain.txt"))
-        self.valid_data_classification = self.__classification__(
-            list(self.valid_data.keys()), self.r_left, self.r_right)
-        self.test_data_classification = self.__classification__(
-            list(self.test_data.keys()), self.r_left, self.r_right)

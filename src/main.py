@@ -1,4 +1,4 @@
-from data.data import WN18
+from data.data import Data
 from model.TransE import TransE
 from model.TransH import TransH
 from model.TransR import TransR
@@ -12,7 +12,7 @@ class Config():
         self.epoch = 1000
         self.batch_size = 5000
         self.test_batch_size = 100
-        self.early_stopping_round = 10
+        self.early_stopping_round = 5
         self.learning_rate = 0.001
         self.e_dim = 50
         self.r_dim = 50
@@ -21,7 +21,7 @@ class Config():
         self.C = 0.25
         self.optimizer = torch.optim.Adam
         self.loss_function = Loss
-        data = WN18(path, self.batch_size)
+        data = Data(path, self.batch_size)
         self.entity_num = data.entity_num
         self.relation_num = data.relation_num
         self.train_num = data.train_num
@@ -37,13 +37,17 @@ class Config():
         self.processes = 4
 
 
-def main():
+def train():
+    config = Config("WN18")
+    model = Model(config)
+    model.train()
+
+
+def test():
     config = Config("WN18")
     model = Model(config)
     model.test()
-    pass
 
 
 if __name__ == "__main__":
-    main()
-    pass
+    test()

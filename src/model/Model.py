@@ -66,15 +66,14 @@ class Model():
         margin = self.margin
         C = self.C
         mean_rank = np.inf
-        valid_epoch = 10
+        valid_epoch = 20
         mean_rank_not_decrease_count = 0
         lr_decrease = 0
         for epoch in range(self.epoch):
-            print("Epoch {}".format(epoch))
             start_time = time.time()
             loss = torch.FloatTensor([0.0])
             random.shuffle(train_batch)
-            for batch in tqdm(train_batch):
+            for batch in tqdm(train_batch, desc="Epoch {}".format(epoch)):
                 h, t, l, h_apos, t_apos, l_apos = \
                     self.__sample_corrupted_filter__(batch, train_data)
                 h = torch.autograd.Variable(torch.LongTensor(h))
@@ -108,10 +107,14 @@ class Model():
             print("Epoch {} | loss: {} | {:.2f}s | lr: {}".format(
                 epoch, loss.item(), time.time()-start_time, optimizer.param_groups[0]["lr"]))
 
-            if mean_rank < 300 and valid_epoch > 1:
+            if mean_rank < 250 and valid_epoch > 1:
                 valid_epoch = 1
+            elif mean_rank < 300 and valid_epoch > 3:
+                valid_epoch = 3
             elif mean_rank < 500 and valid_epoch > 5:
                 valid_epoch = 5
+            elif mean_rank < 1000 and valid_epoch > 10:
+                valid_epoch = 10
 
             if epoch % valid_epoch == 0:
                 entity_embedding = model.entity_embedding.weight.data.cpu().numpy()
@@ -124,6 +127,7 @@ class Model():
                 processes = self.processes
                 test_batch_size = self.test_batch_size
                 _mean_rank, _ = testX(test_data=valid_data,
+                                      train_data=train_data,
                                       entity_embedding=entity_embedding,
                                       relation_embedding=relation_embedding,
                                       w_embedding=w_embedding,
@@ -133,12 +137,12 @@ class Model():
                                       batch_size=test_batch_size)
                 if _mean_rank < mean_rank:
                     mean_rank_not_decrease_count = 0
-                    print("Epoch {}: mean_rank improved from {:.2f} to {:.2f}, saving model".format(
+                    print("Epoch {}: mean_rank improved from {} to {}, saving model".format(
                         epoch, mean_rank, _mean_rank))
                     mean_rank = _mean_rank
                     torch.save(model, self.save_model)
                 else:
-                    print("Epoch {}: mean_rank {:.2f}".format(
+                    print("Epoch {}: mean_rank {}".format(
                         epoch, _mean_rank))
                     mean_rank_not_decrease_count += 1
                     if mean_rank_not_decrease_count == 5:
@@ -158,21 +162,32 @@ class Model():
         if model.name == "TransH" or model.name == "TransR":
             w_embedding = model.w_embedding.weight.data.cpu().numpy()
 
-        print("link prediction")
         test_data = self.test_data
+        train_data = self.train_data
         norm = self.norm
         processes = self.processes
         test_batch_size = self.test_batch_size
-        mean_rank, hit10 = testX(test_data,
-                                 entity_embedding,
-                                 relation_embedding,
-                                 w_embedding,
-                                 norm,
-                                 model.name,
-                                 processes,
-                                 test_batch_size)
+        mean_rank_raw, hit10_raw = testX(test_data,
+                                         train_data,
+                                         entity_embedding,
+                                         relation_embedding,
+                                         w_embedding,
+                                         norm,
+                                         model.name,
+                                         processes,
+                                         test_batch_size)
 
-        print("triple classification")
+        mean_rank_filter, hit10_filter = testX(test_data,
+                                               train_data,
+                                               entity_embedding,
+                                               relation_embedding,
+                                               w_embedding,
+                                               norm,
+                                               model.name,
+                                               processes,
+                                               test_batch_size,
+                                               False)
+
         valid_data_classification = self.valid_data_classification
         test_data_classification = self.test_data_classification
         classification_acc = testC(valid_data_classification,
@@ -183,5 +198,9 @@ class Model():
                                    norm,
                                    model.name)
 
-        print("mean_rank {} | hit10 {:.2f}% | classification_acc {:.2f}%".format(
-            mean_rank, hit10*100, classification_acc*100))
+        print("mean_rank_raw {:11} | mean_rank_filter {:6}".format(
+            mean_rank_raw, mean_rank_filter))
+        print("hit10_raw {:14.2f}% | hit10_filter {:9.2f}%".format(
+            hit10_raw*100, hit10_filter*100))
+        print("classification_acc {:.2f}%".format(
+            classification_acc*100))

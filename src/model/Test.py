@@ -5,21 +5,42 @@ from sklearn.metrics.pairwise import pairwise_distances
 from multiprocessing import Pool
 
 
-def rank_where(h, t, hl, lt, norm, embedding):
-    if norm == 1:
-        dist_hl = pairwise_distances(
-            hl, embedding, metric="manhattan")
-        dist_lt = pairwise_distances(
-            lt, embedding, metric="manhattan")
-    else:
-        dist_hl = pairwise_distances(
-            hl, embedding, metric="euclidean")
-        dist_lt = pairwise_distances(
-            lt, embedding, metric="euclidean")
+# filter out those corrupted triples which have appeared in knowledge graph
+def where_filter(h, t, l, line, head=True):
+    global train_data_global
+    where = 0
+    for i in line:
+        target, triple = (h, (i, t, l)) if head else (t, (h, i, l))
+        if i == target:
+            return where
+        elif triple in train_data_global:
+            continue
+        else:
+            where += 1
+    return where
+
+
+def rank_where(h, t, l, hl, lt, norm, embedding):
+    global raw_global
+    dist_hl, dist_lt = (
+        pairwise_distances(hl, embedding, metric="manhattan"),
+        pairwise_distances(lt, embedding, metric="manhattan")
+    ) if norm == 1 else (
+        pairwise_distances(hl, embedding, metric="euclidean"),
+        pairwise_distances(lt, embedding, metric="euclidean")
+    )
     t_rank = np.argsort(dist_hl, axis=1)
     h_rank = np.argsort(dist_lt, axis=1)
-    return [np.where(line == _t)[0][0] for _t, line in zip(t, t_rank)] +\
+    rank_return = (
+        [np.where(line == _t)[0][0] for _t, line in zip(t, t_rank)] +
         [np.where(line == _h)[0][0] for _h, line in zip(h, h_rank)]
+    ) if raw_global else (
+        [where_filter(_h, _t, _l, line, False)
+         for _h, _t, _l, line in zip(h, t, l, t_rank)] +
+        [where_filter(_h, _t, _l, line)
+         for _h, _t, _l, line in zip(h, t, l, h_rank)]
+    )
+    return rank_return
 
 
 def rank_E(test_data):
@@ -32,7 +53,7 @@ def rank_E(test_data):
     l_vec = relation_embedding_global[l]
     hl = h_vec+l_vec
     lt = t_vec-l_vec
-    return rank_where(h, t, hl, lt, norm_global, entity_embedding_global)
+    return rank_where(h, t, l, hl, lt, norm_global, entity_embedding_global)
 
 
 def rank_H(test_data):
@@ -48,7 +69,7 @@ def rank_H(test_data):
     l_vec = relation_embedding_global[l]
     hl = h_vec+l_vec
     lt = t_vec-l_vec
-    return rank_where(h, t, hl, lt, norm_global, entity_embedding)
+    return rank_where(h, t, l, hl, lt, norm_global, entity_embedding)
 
 
 def rank_R(test_data):
@@ -64,7 +85,7 @@ def rank_R(test_data):
     l_vec = relation_embedding_global[l]
     hl = h_vec+l_vec
     lt = t_vec-l_vec
-    return rank_where(h, t, hl, lt, norm_global, entity_embedding)
+    return rank_where(h, t, l, hl, lt, norm_global, entity_embedding)
 
 
 def relation_batch(test_data, relation_num, batch_size):
@@ -81,13 +102,17 @@ def relation_batch(test_data, relation_num, batch_size):
     return test_data
 
 
-def testX(test_data, entity_embedding, relation_embedding, w_embedding,
-          norm, model, processes, batch_size):
-    global entity_embedding_global, relation_embedding_global, w_embedding_global, norm_global
+def testX(test_data, train_data, entity_embedding, relation_embedding, w_embedding,
+          norm, model, processes, batch_size, raw=True):
+    global train_data_global, \
+        entity_embedding_global, relation_embedding_global, w_embedding_global, \
+        norm_global, raw_global
+    train_data_global = train_data
     entity_embedding_global = entity_embedding
     relation_embedding_global = relation_embedding
     w_embedding_global = w_embedding
     norm_global = norm
+    raw_global = raw
 
     if model == "TransE":
         rank_function = rank_E
@@ -103,15 +128,20 @@ def testX(test_data, entity_embedding, relation_embedding, w_embedding,
         test_data = relation_batch(
             test_data, relation_embedding.shape[0], batch_size)
 
+    desc_format = "raw" if raw else "filter"
     with Pool(processes) as pool:
         rank_list = [v for v in tqdm(
-            pool.imap_unordered(rank_function, test_data), total=len(test_data)
+            pool.imap_unordered(rank_function, test_data),
+            desc="link prediction {:7}".format(desc_format),
+            total=len(test_data)
         )]
     rank_list = [v for sublist in rank_list for v in sublist]
     mean_rank = sum(rank_list)/len(rank_list)
     hit10 = sum([1 for rank in rank_list if rank < 10])/len(rank_list)
-    del entity_embedding_global, relation_embedding_global, norm_global
-    return mean_rank, hit10
+    del train_data_global, \
+        entity_embedding_global, relation_embedding_global, w_embedding_global, \
+        norm_global, raw_global
+    return int(mean_rank), hit10
 
 
 # valid_data, test_data: {(h, t, l): True}
@@ -125,9 +155,11 @@ def testC(valid_data, test_data, entity_embedding, relation_embedding, w_embeddi
         _test_data[triple[2]].append(triple)
 
     test_tp, test_fp, test_tn, test_fn = 0, 0, 0, 0
-    for relation in tqdm(range(relation_embedding.shape[0])):
-        _entity_embedding = entity_embedding
-        if model == "TransH":
+    for relation in tqdm(range(relation_embedding.shape[0]),
+                         desc="triple classification  "):
+        if model == "TransE":
+            _entity_embedding = entity_embedding
+        elif model == "TransH":
             w_vec = w_embedding[relation]
             _entity_embedding = entity_embedding - \
                 np.sum(entity_embedding*w_vec, axis=1, keepdims=True)*w_vec
@@ -146,27 +178,21 @@ def testC(valid_data, test_data, entity_embedding, relation_embedding, w_embeddi
         l_vec = relation_embedding[l]
         dist = np.linalg.norm(h_vec+l_vec-t_vec, ord=norm, axis=1)
         dist_rank = np.argsort(dist)
-        tp = sum([1 for v in dist_rank if valid_data[__valid_data[v]]])
-        fp = len(dist)-tp
-        tn, fn = 0, 0
+        # positive 和 negative 数据各一半
+        tp, fp, tn, fn = 0, 0, len(dist)*0.5, len(dist)*0.5
         acc = (tp+tn)/(tp+fp+tn+fn)
         # sigma 为阈值， dist <= sigma 预测为真
         sigma = dist[dist_rank[0]]
         for i, v in enumerate(dist_rank):
-            if valid_data[__valid_data[v]]:
-                fn += 1
-                tp -= 1
-            else:
-                tn += 1
-                fp -= 1
+            tp, fp, tn, fn = (tp+1, fp, tn, fn-1) \
+                if valid_data[__valid_data[v]] else \
+                (tp, fp+1, tn-1, fn)
             _acc = (tp+tn)/(tp+fp+tn+fn)
             if _acc > acc:
                 acc = _acc
-                if i+1 < len(dist_rank):
-                    sigma = (dist[v]+dist[dist_rank[i+1]])/2
-                else:
-                    sigma = dist[v]-np.finfo(dist[v].dtype).eps
-
+                sigma = (dist[v]+dist[dist_rank[i+1]])/2 \
+                    if i+1 < len(dist_rank) else \
+                    dist[v]-np.finfo(dist[v].dtype).eps
         tp, fp, tn, fn = 0, 0, 0, 0
         __test_data = _test_data[relation]
         h = [triple[0] for triple in __test_data]
