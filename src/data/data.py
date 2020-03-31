@@ -60,12 +60,16 @@ class Data():
         return num, r_left, r_right
 
     def __triple_corrupted_head__(self, triple, potential):
+        if len(potential) == 1:
+            potential = self.entity
         while True:
             e = random.sample(potential, 1)[0]
             if e != triple[0]:
                 return (e, triple[1], triple[2])
 
     def __triple_corrupted_tail__(self, triple, potential):
+        if len(potential) == 1:
+            potential = self.entity
         while True:
             e = random.sample(potential, 1)[0]
             if e != triple[1]:
