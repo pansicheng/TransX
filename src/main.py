@@ -31,8 +31,9 @@ class Config():
         self.test_data = list(data.test_data.keys())
         self.valid_data_classification = data.valid_data_classification
         self.test_data_classification = data.test_data_classification
-        self.model = TransE(self.e_dim, self.r_dim, self.norm,
-                            self.entity_num, self.relation_num)
+        self.model = TransR(self.e_dim, self.r_dim, self.norm,
+                            self.entity_num, self.relation_num,
+                            path)
         self.filename = path
         self.processes = 4
 
@@ -50,4 +51,5 @@ def test():
 
 
 if __name__ == "__main__":
+    train()
     test()

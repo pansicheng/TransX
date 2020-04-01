@@ -5,7 +5,8 @@ class TransE(torch.nn.Module):
     def __init__(self,
                  e_dim, r_dim, norm,
                  entity_num,
-                 relation_num
+                 relation_num,
+                 path
                  ):
         super(TransE, self).__init__()
         self.name = "TransE"
@@ -45,4 +46,4 @@ class TransE(torch.nn.Module):
         dist_apos = torch.norm(h_apos_vec + l_apos_vec - t_apos_vec,
                                self.norm, 1)
 
-        return dist, dist_apos
+        return dist, dist_apos, h_vec, t_vec, h_apos_vec, t_apos_vec

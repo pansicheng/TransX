@@ -63,8 +63,8 @@ class Model():
         optimizer = self.optimizer(model.parameters(), lr=self.learning_rate)
         train_data = self.train_data
         train_batch = self.train_batch
-        margin = self.margin
-        C = self.C
+        margin = torch.autograd.Variable(torch.FloatTensor([self.margin]))
+        C = torch.autograd.Variable(torch.FloatTensor([self.C]))
         mean_rank = np.inf
         valid_epoch = 20
         mean_rank_not_decrease_count = 0
@@ -84,8 +84,10 @@ class Model():
                 l_apos = torch.autograd.Variable(torch.LongTensor(l_apos))
 
                 model.zero_grad()
-                dist, dist_apos = model(h, t, l,
-                                        h_apos, t_apos, l_apos)
+                dist, dist_apos, \
+                    h_vec, t_vec, \
+                    h_apos_vec, t_apos_vec = model(h, t, l,
+                                                   h_apos, t_apos, l_apos)
 
                 batch_loss = self.loss_function(dist, dist_apos, margin)
                 if model.name == "TransH":
@@ -98,6 +100,19 @@ class Model():
                     batch_loss += C*(
                         scale_loss(entity_embedding) +
                         orthogonal_loss(relation_embedding, w_embedding)
+                    )
+                elif model.name == "TransR":
+                    entity_embedding = model.entity_embedding(
+                        torch.cat([h, t, h_apos, t_apos]))
+                    relation_embedding = model.relation_embedding(
+                        torch.cat([l, l_apos]))
+                    batch_loss += (
+                        scale_loss(entity_embedding) +
+                        scale_loss(relation_embedding) +
+                        scale_loss(h_vec) +
+                        scale_loss(t_vec) +
+                        scale_loss(h_apos_vec) +
+                        scale_loss(t_apos_vec)
                     )
 
                 batch_loss.backward()
