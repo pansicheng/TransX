@@ -38,16 +38,16 @@ class Config():
 
 
 def train():
-    config = Config("FB15K")
+    config = Config("WN18")
     model = Model(config)
     model.train()
 
 
 def test():
-    config = Config("FB15K")
+    config = Config("WN18")
     model = Model(config)
     model.test()
 
 
 if __name__ == "__main__":
-    train()
+    test()

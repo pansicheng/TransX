@@ -170,6 +170,8 @@ def testC(valid_data, test_data, entity_embedding, relation_embedding, w_embeddi
 
         # __valid_data, __test_data: [(h, t, l), ]
         __valid_data = _valid_data[relation]
+        if len(__valid_data) == 0:
+            continue
         h = [triple[0] for triple in __valid_data]
         t = [triple[1] for triple in __valid_data]
         l = [triple[2] for triple in __valid_data]
@@ -195,6 +197,8 @@ def testC(valid_data, test_data, entity_embedding, relation_embedding, w_embeddi
                     dist[v]-np.finfo(dist[v].dtype).eps
         tp, fp, tn, fn = 0, 0, 0, 0
         __test_data = _test_data[relation]
+        if len(__test_data) == 0:
+            continue
         h = [triple[0] for triple in __test_data]
         t = [triple[1] for triple in __test_data]
         l = [triple[2] for triple in __test_data]
@@ -219,4 +223,4 @@ def testC(valid_data, test_data, entity_embedding, relation_embedding, w_embeddi
         test_tn += tn
         test_fn += fn
 
-    return (tp+tn)/(tp+fp+tn+fn)
+    return (test_tp+test_tn)/(test_tp+test_fp+test_tn+test_fn)
