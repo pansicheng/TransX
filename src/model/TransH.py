@@ -35,10 +35,6 @@ class TransH(torch.nn.Module):
         self.w_embedding.weight.data = normalize_w_embedding
 
     def forward(self, h_batch, t_batch, l_batch, h_apos_batch, t_apos_batch, l_apos_batch):
-        normalize_w_embedding = torch.nn.functional.normalize(
-            self.w_embedding.weight.data, p=2, dim=1)
-        self.w_embedding.weight.data = normalize_w_embedding
-
         h_vec = self.entity_embedding(h_batch)
         l_vec = self.relation_embedding(l_batch)
         t_vec = self.entity_embedding(t_batch)

@@ -64,7 +64,7 @@ class Model():
         train_data = self.train_data
         train_batch = self.train_batch
         margin = torch.autograd.Variable(torch.FloatTensor([self.margin]))
-        C = torch.autograd.Variable(torch.FloatTensor([self.C]))
+        C = self.C
         mean_rank = np.inf
         valid_epoch = 20
         mean_rank_not_decrease_count = 0
@@ -90,7 +90,16 @@ class Model():
                                                    h_apos, t_apos, l_apos)
 
                 batch_loss = self.loss_function(dist, dist_apos, margin)
-                if model.name == "TransH":
+                if model.name == "TransE":
+                    entity_embedding = model.entity_embedding(
+                        torch.cat([h, t, h_apos, t_apos]))
+                    relation_embedding = model.relation_embedding(
+                        torch.cat([l, l_apos]))
+                    batch_loss += (
+                        scale_loss(entity_embedding) +
+                        scale_loss(relation_embedding)
+                    )
+                elif model.name == "TransH":
                     entity_embedding = model.entity_embedding(
                         torch.cat([h, t, h_apos, t_apos]))
                     relation_embedding = model.relation_embedding(
@@ -219,3 +228,13 @@ class Model():
             hit10_raw*100, hit10_filter*100))
         print("classification_acc {:.2f}%".format(
             classification_acc*100))
+
+        with open("evaluation_result", 'a') as handle:
+            handle.write("Model: {} | {}\n".format(
+                self.model.name, self.filename))
+            handle.write("mean_rank_raw {:11} | mean_rank_filter {:6}\n".format(
+                mean_rank_raw, mean_rank_filter))
+            handle.write("hit10_raw {:14.2f}% | hit10_filter {:9.2f}%\n".format(
+                hit10_raw*100, hit10_filter*100))
+            handle.write("classification_acc {:.2f}%\n".format(
+                classification_acc*100))

@@ -8,7 +8,7 @@ import torch
 
 
 class Config():
-    def __init__(self, path):
+    def __init__(self, path, TransX):
         self.epoch = 1000
         self.batch_size = 5000
         self.test_batch_size = 100
@@ -31,25 +31,39 @@ class Config():
         self.test_data = list(data.test_data.keys())
         self.valid_data_classification = data.valid_data_classification
         self.test_data_classification = data.test_data_classification
-        self.model = TransR(self.e_dim, self.r_dim, self.norm,
+        self.model = TransX(self.e_dim, self.r_dim, self.norm,
                             self.entity_num, self.relation_num,
                             path)
         self.filename = path
         self.processes = 4
 
 
-def train():
-    config = Config("WN18")
+def main():
+    config = Config("WN18", TransE)
     model = Model(config)
     model.train()
-
-
-def test():
-    config = Config("WN18")
+    model.test()
+    config = Config("FB15K", TransE)
     model = Model(config)
+    model.train()
+    model.test()
+    config = Config("WN18", TransH)
+    model = Model(config)
+    model.train()
+    model.test()
+    config = Config("FB15K", TransH)
+    model = Model(config)
+    model.train()
+    model.test()
+    config = Config("WN18", TransR)
+    model = Model(config)
+    model.train()
+    model.test()
+    config = Config("FB15K", TransR)
+    model = Model(config)
+    model.train()
     model.test()
 
 
 if __name__ == "__main__":
-    train()
-    test()
+    main()
