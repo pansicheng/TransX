@@ -38,7 +38,7 @@ class Config():
         self.processes = 4
 
 
-def main():
+def run():
     config = Config("WN18", TransE)
     model = Model(config)
     model.train()
@@ -63,6 +63,10 @@ def main():
     model = Model(config)
     model.train()
     model.test()
+
+
+def main():
+    pass
 
 
 if __name__ == "__main__":
